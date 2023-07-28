@@ -114,12 +114,12 @@ def send_request(
         print(f"{Fore.RED}[!] Error occurred: {e}{Style.RESET_ALL}")
 
 
-def single_username_single_password(target, username, password, verbose, log_file):
-    send_request(target, username, password, verbose=verbose, log_file=log_file)
+def single_username_single_password(target, username, password, verbose, log_file, check_mfa):
+    send_request(target, username, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
 
 
 def single_username_password_list(
-    target, username, password_list_file, verbose, log_file
+    target, username, password_list_file, verbose, log_file, check_mfa
 ):
     try:
         with open(password_list_file, "r") as file:
@@ -130,6 +130,7 @@ def single_username_password_list(
                     password.strip(),
                     verbose=verbose,
                     log_file=log_file,
+                    check_mfa=check_mfa
                 )
     except FileNotFoundError:
         print(f"{Fore.RED}[!] File '{password_list_file}' not found.{Style.RESET_ALL}")
@@ -140,7 +141,7 @@ def single_username_password_list(
 
 
 def username_list_single_password(
-    target, username_list_file, password, verbose, log_file
+    target, username_list_file, password, verbose, log_file, check_mfa
 ):
     try:
         with open(username_list_file, "r") as file:
@@ -151,6 +152,7 @@ def username_list_single_password(
                     password,
                     verbose=verbose,
                     log_file=log_file,
+                    check_mfa=check_mfa
                 )
     except FileNotFoundError:
         print(
@@ -163,7 +165,7 @@ def username_list_single_password(
 
 
 def username_list_password_list(
-    target, username_list_file, password_list_file, verbose, log_file
+    target, username_list_file, password_list_file, verbose, log_file, check_mfa
 ):
     try:
         with open(username_list_file, "r") as users:
@@ -179,6 +181,7 @@ def username_list_password_list(
                     password.strip(),
                     verbose=verbose,
                     log_file=log_file,
+                    check_mfa=check_mfa
                 )
     except FileNotFoundError:
         if not username_list_file:
@@ -277,19 +280,13 @@ if __name__ == "__main__":
     print(f"{Fore.CYAN}[*] Target ADFS Host: {target}{Style.RESET_ALL}")
 
     if username and password:
-        single_username_single_password(target, username, password, verbose, log_file)
+        send_request(target, username, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
     elif username and password_list_file:
-        single_username_password_list(
-            target, username, password_list_file, verbose, log_file
-        )
+        send_request(target, username, password_list_file, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
     elif username_list_file and password:
-        username_list_single_password(
-            target, username_list_file, password, verbose, log_file
-        )
+        send_request(target, username_list_file, password, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
     elif username_list_file and password_list_file:
-        username_list_password_list(
-            target, username_list_file, password_list_file, verbose, log_file
-        )
+        send_request(target, username_list_file, password_list_file, verbose=verbose, log_file=log_file, check_mfa=check_mfa)
     else:
         print(
             f"{Fore.RED}[!] Invalid combination of username and password options.{Style.RESET_ALL}"
