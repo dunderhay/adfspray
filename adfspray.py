@@ -29,7 +29,8 @@ def check_authentication_cookies(login_srf_response):
 def send_request(
     target, username, password, verbose=False, log_file=None, check_mfa=False
 ):
-    print(f"{Fore.WHITE}[*] Trying login for {username}{Style.RESET_ALL}", end="\r")
+    if verbose:
+        print(f"{Fore.WHITE}[*] Trying login for {username}{Style.RESET_ALL}")
 
     payload = {
         "UserName": username,
