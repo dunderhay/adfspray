@@ -7,6 +7,19 @@ from colorama import Fore, Style
 from datetime import datetime
 
 
+def print_banner():
+    banner = f"""{Fore.CYAN}
+   ___   ___  ________                  
+  / _ | / _ \/ __/ __/__  _______ ___ __
+ / __ |/ // / _/_\ \/ _ \/ __/ _ `/ // /
+/_/ |_/____/_/ /___/ .__/_/  \_,_/\_, / 
+                  /_/            /___/
+
+{Fore.YELLOW}Author: phish (@dunderhay){Style.RESET_ALL}
+    """
+    print(banner)
+
+
 def log_message(message, log_file=None, color=None):
     timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     if color:
@@ -103,6 +116,9 @@ def send_login_request(
                                     f"[+] MFA not required for: {username}",
                                     log_file,
                                     color=Fore.GREEN,
+                                )
+                                print(
+                                    f"=========== 🎉 {username} is fully compromised 🤌 ==========="
                                 )
                     else:
                         print(
@@ -229,6 +245,7 @@ if __name__ == "__main__":
             )
             exit(1)
 
+    print_banner()
     log_message(f"[*] Target ADFS Host: {target}", log_file, color=Fore.CYAN)
 
     for username in usernames:
