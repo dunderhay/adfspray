@@ -10,3 +10,5 @@ Supports the following options:
 + Username list with a password list: -U username_list.txt -P password_list.txt
 
 You can also check if Multi-Factor Authentication (MFA) is required after successful login using `--mfa` and log the output to a file using `-l` <outputfilename>
+
+**Note**: the  script currently assumes the login is done at `/adfs/ls/`.
