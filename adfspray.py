@@ -2,6 +2,7 @@ import requests
 import argparse
 import re
 import html
+import time
 from colorama import Fore, Style
 
 
@@ -63,9 +64,7 @@ def send_login_request(
                         log.write(success_message + "\n")
 
                 if check_mfa:
-                    wresult_value = extract_saml_assertion(
-                        adfs_login_response.text
-                    )
+                    wresult_value = extract_saml_assertion(adfs_login_response.text)
                     if wresult_value:
                         login_srf_url = "https://login.microsoftonline.com/login.srf"
                         login_srf_payload = {
@@ -186,6 +185,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Check if Multi-Factor Authentication (MFA) is required after successful login",
     )
+    parser.add_argument(
+        "-d",
+        "--delay",
+        type=int,
+        default=0,
+        help="Delay in seconds between login attempts (e.g., --delay 2 for 2 seconds delay)",
+    )
 
     args = parser.parse_args()
 
@@ -195,6 +201,7 @@ if __name__ == "__main__":
     log_file = args.log_file
     check_mfa = args.mfa
     verbose = args.verbose
+    delay = args.delay
 
     if args.username:
         usernames.append(args.username)
@@ -204,7 +211,9 @@ if __name__ == "__main__":
             with open(args.username_list, "r") as users_file:
                 usernames.extend(users_file.read().splitlines())
         except FileNotFoundError:
-            print(f"{Fore.RED}[!] Username list file '{args.username_list}' not found.{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}[!] Username list file '{args.username_list}' not found.{Style.RESET_ALL}"
+            )
             exit(1)
 
     if args.password:
@@ -215,7 +224,9 @@ if __name__ == "__main__":
             with open(args.password_list, "r") as passwords_file:
                 passwords.extend(passwords_file.read().splitlines())
         except FileNotFoundError:
-            print(f"{Fore.RED}[!] Password list file '{args.password_list}' not found.{Style.RESET_ALL}")
+            print(
+                f"{Fore.RED}[!] Password list file '{args.password_list}' not found.{Style.RESET_ALL}"
+            )
             exit(1)
 
     print(f"{Fore.CYAN}[*] Target ADFS Host: {target}{Style.RESET_ALL}")
@@ -230,3 +241,5 @@ if __name__ == "__main__":
                 log_file=log_file,
                 check_mfa=check_mfa,
             )
+            if delay:
+                time.sleep(delay)
