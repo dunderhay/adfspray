@@ -251,6 +251,14 @@ if __name__ == "__main__":
             )
             exit(1)
 
+    if not usernames:
+        print(f"{Fore.RED}[!] No usernames provided. Please provide a username or a list of usernames.{Style.RESET_ALL}")
+        exit(1)
+
+    if not passwords:
+        print(f"{Fore.RED}[!] No passwords provided. Please provide a password or a list of passwords.{Style.RESET_ALL}")
+        exit(1)
+
     print_banner()
     log_message(f"[*] Target ADFS Host: {target}", log_file, color=Fore.CYAN)
 
