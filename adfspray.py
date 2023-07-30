@@ -111,14 +111,16 @@ def send_login_request(
                                     log_file,
                                     color=Fore.RED,
                                 )
-                            elif "/kmsi" in login_srf_response.text:
+                            elif "/kmsi" or "KmsiInterrupt" in login_srf_response.text:
                                 log_message(
                                     f"[+] MFA not required for: {username}",
                                     log_file,
                                     color=Fore.GREEN,
                                 )
-                                print(
-                                    f"=====================  🎉 {Fore.GREEN}{username} is fully compromised 🤌{Style.RESET_ALL}"
+                                log_message(
+                                    f"[+] 🍾 {username} is fully compromised 🤌",
+                                    log_file,
+                                    color=Fore.MAGENTA,
                                 )
                             else:
                                 print(
