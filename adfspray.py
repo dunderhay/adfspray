@@ -20,6 +20,80 @@ def print_banner():
     print(banner)
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="ADFS Brute-Force Login Script",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="Usage examples:"
+        "\n  python script.py -t https://adfs.example.com -u user -p password123"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 -mfa"
+        "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -o output.txt"
+        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
+        "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
+    )
+
+    parser.add_argument(
+        "-t",
+        "--target",
+        type=str,
+        required=True,
+        help="ADFS target host URL (e.g., https://adfs.example.com)",
+    )
+    parser.add_argument(
+        "-u", "--username", type=str, required=False, help="Single username to try"
+    )
+    parser.add_argument(
+        "-U",
+        "--username-list",
+        type=str,
+        required=False,
+        help="File containing a list of usernames",
+    )
+    parser.add_argument(
+        "-p",
+        "--password",
+        type=str,
+        required=False,
+        help="Single password to use for login attempts",
+    )
+    parser.add_argument(
+        "-P",
+        "--password-list",
+        type=str,
+        required=False,
+        help="File containing a list of passwords",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Enable verbose mode to show all print statements",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=False,
+        help="File to log the login results",
+    )
+    parser.add_argument(
+        "-mfa",
+        "--mfa",
+        action="store_true",
+        help="Check if Multi-Factor Authentication (MFA) is required after successful login",
+    )
+    parser.add_argument(
+        "-d",
+        "--delay",
+        type=int,
+        default=0,
+        help="Delay in seconds between login attempts (e.g., --delay 2 for 2 seconds delay)",
+    )
+
+    return parser.parse_args()
+
+
 def log_message(message, log_file=None, color=None):
     timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     if color:
@@ -40,7 +114,6 @@ def extract_saml_assertion(adfs_login_response):
         return wresult_value
     else:
         return None
-
 
 def check_authentication_cookies(login_srf_response):
     cookies = login_srf_response.cookies
@@ -142,82 +215,12 @@ def send_login_request(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="ADFS Brute-Force Login Script",
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog="Usage examples:"
-        "\n  python script.py -t https://adfs.example.com -u user -p password123"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 -mfa"
-        "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -l output.txt"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
-        "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
-    )
-
-    parser.add_argument(
-        "-t",
-        "--target",
-        type=str,
-        required=True,
-        help="ADFS target host URL (e.g., https://adfs.example.com)",
-    )
-    parser.add_argument(
-        "-u", "--username", type=str, required=False, help="Single username to try"
-    )
-    parser.add_argument(
-        "-U",
-        "--username-list",
-        type=str,
-        required=False,
-        help="File containing a list of usernames",
-    )
-    parser.add_argument(
-        "-p",
-        "--password",
-        type=str,
-        required=False,
-        help="Single password to use for login attempts",
-    )
-    parser.add_argument(
-        "-P",
-        "--password-list",
-        type=str,
-        required=False,
-        help="File containing a list of passwords",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        default=False,
-        help="Enable verbose mode to show all print statements",
-    )
-    parser.add_argument(
-        "-l",
-        "--log-file",
-        type=str,
-        required=False,
-        help="File to log the login results",
-    )
-    parser.add_argument(
-        "-mfa",
-        "--mfa",
-        action="store_true",
-        help="Check if Multi-Factor Authentication (MFA) is required after successful login",
-    )
-    parser.add_argument(
-        "-d",
-        "--delay",
-        type=int,
-        default=0,
-        help="Delay in seconds between login attempts (e.g., --delay 2 for 2 seconds delay)",
-    )
-
-    args = parser.parse_args()
+    args = parse_arguments()
 
     target = args.target
     usernames = []
     passwords = []
-    log_file = args.log_file
+    log_file = args.output
     check_mfa = args.mfa
     verbose = args.verbose
     delay = args.delay
