@@ -38,30 +38,27 @@ def parse_arguments():
         required=True,
         help="ADFS target host URL (e.g., https://adfs.example.com)",
     )
-    users_parser = parser.add_mutually_exclusive_group()
+    users_parser = parser.add_mutually_exclusive_group(required=True)
     users_parser.add_argument(
-        "-u", "--username", type=str, required=False, help="Single username to try"
+        "-u", "--username", type=str, help="Single username to try"
     )
     users_parser.add_argument(
         "-U",
         "--username-list",
         type=str,
-        required=False,
         help="File containing a list of usernames",
     )
-    passwords_parser = parser.add_mutually_exclusive_group()
+    passwords_parser = parser.add_mutually_exclusive_group(required=True)
     passwords_parser.add_argument(
         "-p",
         "--password",
         type=str,
-        required=False,
         help="Single password to use for login attempts",
     )
     passwords_parser.add_argument(
         "-P",
         "--password-list",
         type=str,
-        required=False,
         help="File containing a list of passwords",
     )
     parser.add_argument(
