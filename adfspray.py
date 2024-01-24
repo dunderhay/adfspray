@@ -114,6 +114,7 @@ headers = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
 }
 
+
 def log_message(message, log_file=None, color=None):
     timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     if color:
@@ -142,9 +143,8 @@ def check_authentication_cookies(login_srf_response):
 
 
 def perform_microsoft_mfa_check(session, login_response, username, log_file):
-
     wresult_value = extract_saml_assertion(login_response)
-    
+
     if wresult_value:
         login_srf_url = "https://login.microsoftonline.com/login.srf"
         login_srf_payload = {
@@ -166,15 +166,16 @@ def perform_microsoft_mfa_check(session, login_response, username, log_file):
         login_srf_response.raise_for_status()
 
         if debug:
-            print(f"{Fore.CYAN}[*] HTTP POST Response (Microsoft MFA):{Style.RESET_ALL}")
+            print(
+                f"{Fore.CYAN}[*] HTTP POST Response (Microsoft MFA):{Style.RESET_ALL}"
+            )
             print(f"    Status Code: {login_srf_response.status_code}")
             print(f"    Headers: {login_srf_response.request.headers}")
             print(f"    Cookies: {session.cookies.get_dict()}")
             print(f"    Body: {login_srf_response.text}")
 
-        if (
-            login_srf_response.status_code == 200
-            and check_authentication_cookies(login_srf_response)
+        if login_srf_response.status_code == 200 and check_authentication_cookies(
+            login_srf_response
         ):
             if "BeginAuth" in login_srf_response.text:
                 log_message(
@@ -194,11 +195,11 @@ def perform_microsoft_mfa_check(session, login_response, username, log_file):
                     color=Fore.MAGENTA,
                 )
             else:
-                print(
-                    f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
-                )
+                print(f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}")
     else:
-        print(f"{Fore.RED}[!] Could not extract SAML assertion for MFA check.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}[!] Could not extract SAML assertion for MFA check.{Style.RESET_ALL}"
+        )
 
 
 def perform_adfs_mfa_check(session, login_response, username, log_file):
@@ -217,14 +218,17 @@ def perform_adfs_mfa_check(session, login_response, username, log_file):
     adfs_mfa_response.raise_for_status()
 
     if debug:
-            print(f"{Fore.CYAN}[*] HTTP GET Response (ADFS MFA):{Style.RESET_ALL}")
-            print(f"    Status Code: {adfs_mfa_response.status_code}")
-            print(f"    Headers: {adfs_mfa_response.request.headers}")
-            print(f"    Cookies: {session.cookies.get_dict()}")
-            print(f"    Body: {adfs_mfa_response.text}")
+        print(f"{Fore.CYAN}[*] HTTP GET Response (ADFS MFA):{Style.RESET_ALL}")
+        print(f"    Status Code: {adfs_mfa_response.status_code}")
+        print(f"    Headers: {adfs_mfa_response.request.headers}")
+        print(f"    Cookies: {session.cookies.get_dict()}")
+        print(f"    Body: {adfs_mfa_response.text}")
 
     if adfs_mfa_response.status_code == 200:
-        if "/kmsi" in adfs_mfa_response.text or "KmsiInterrupt" in adfs_mfa_response.text:
+        if (
+            "/kmsi" in adfs_mfa_response.text
+            or "KmsiInterrupt" in adfs_mfa_response.text
+        ):
             log_message(
                 f"[+] MFA not required for: {username}",
                 log_file,
@@ -242,14 +246,17 @@ def perform_adfs_mfa_check(session, login_response, username, log_file):
                 log_file,
                 color=Fore.RED,
             )
-        elif 'action="https://login.microsoftonline.com:443/login.srf"'in adfs_mfa_response.text:
+        elif (
+            'action="https://login.microsoftonline.com:443/login.srf"'
+            in adfs_mfa_response.text
+        ):
             if debug:
-                print(f"{Fore.CYAN}[*] ADFS has reverted to Microsoft for MFA check - this is new?{Style.RESET_ALL}")
+                print(
+                    f"{Fore.CYAN}[*] ADFS has reverted to Microsoft for MFA check - this is new?{Style.RESET_ALL}"
+                )
             perform_microsoft_mfa_check(session, adfs_mfa_response, username, log_file)
         else:
-            print(
-                f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}"
-            )
+            print(f"{Fore.RED}[!] Unknown response checking MFA.{Style.RESET_ALL}")
 
 
 def send_login_request(
@@ -289,19 +296,23 @@ def send_login_request(
             )
 
             if debug:
-                print(f"{Fore.CYAN}[*] HTTP POST Request (Initial Login):{Style.RESET_ALL}")
+                print(
+                    f"{Fore.CYAN}[*] HTTP POST Request (Initial Login):{Style.RESET_ALL}"
+                )
                 print(f"    URL: {adfs_login_response.url}")
                 print(f"    Body: {payload}")
 
             adfs_login_response.raise_for_status()
 
             if debug:
-                print(f"{Fore.CYAN}[*] HTTP POST Response (Initial Login):{Style.RESET_ALL}")
+                print(
+                    f"{Fore.CYAN}[*] HTTP POST Response (Initial Login):{Style.RESET_ALL}"
+                )
                 print(f"    Status Code: {adfs_login_response.status_code}")
                 print(f"    Headers: {adfs_login_response.request.headers}")
                 print(f"    Cookies: {session.cookies.get_dict()}")
                 print(f"    Body: {adfs_login_response.text}")
-      
+
             if (
                 adfs_login_response.status_code == 200
                 and 'action="https://login.microsoftonline.com:443/login.srf"'
@@ -336,10 +347,13 @@ def send_login_request(
 
             if check_mfa:
                 if microsoft_checks_mfa:
-                    perform_microsoft_mfa_check(session, adfs_login_response, username, log_file)
+                    perform_microsoft_mfa_check(
+                        session, adfs_login_response, username, log_file
+                    )
                 elif adfs_checks_mfa:
-                    perform_adfs_mfa_check(session, adfs_login_response, username, log_file)
-                    
+                    perform_adfs_mfa_check(
+                        session, adfs_login_response, username, log_file
+                    )
 
     except requests.exceptions.Timeout:
         print(f"{Fore.RED}[!] Request timed out.{Style.RESET_ALL}")
